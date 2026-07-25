@@ -107,6 +107,8 @@ _STR = {
     "settings_snow":         {"zh": "暴风雪", "en": "Blizzard"},
     "settings_zerog":        {"zh": "无重力", "en": "Zero gravity"},
     "settings_water":        {"zh": "涨水", "en": "Flood"},
+    "settings_hud_section": {"zh": "界面与交互", "en": "UI & Interaction"},
+    "settings_hide_fs": {"zh": "全屏时自动隐藏 (Hide on Fullscreen)", "en": "Hide on Fullscreen"},
     "settings_show_hud":     {"zh": "显示状态面板", "en": "Show status panel"},
     "settings_pick_title":   {"zh": "选择皮", "en": "Pick a variant"},
     "settings_pick_cat":     {"zh": "选择要添加的蛞蝓猫", "en": "Choose a slugcat to add"},

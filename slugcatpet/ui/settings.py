@@ -162,10 +162,22 @@ class SettingsWindow(QWidget):
             w.set_water(True)
 
     def _section_hud(self, v):
+        v.addWidget(self._header(t("settings_hud_section")))
+        
+        chk_fs = QCheckBox(t("settings_hide_fs"))
+        chk_fs.setChecked(self._window._params.get("hide_on_fullscreen", True))
+        chk_fs.toggled.connect(self._on_hide_fs_toggled)
+        v.addWidget(chk_fs)
+
         chk = QCheckBox(t("settings_show_hud"))
         chk.setChecked(self._hud.isVisible())
         chk.toggled.connect(self._on_hud_toggled)
         v.addWidget(chk)
+
+    def _on_hide_fs_toggled(self, checked):
+        self._window._params["hide_on_fullscreen"] = checked
+        if not checked and getattr(self._window, "_envwatch", None):
+            self._window._envwatch._check_fullscreen()
 
     # 增删走卡片弹窗（open()=WindowModal，不 exec）
     def _on_add(self):

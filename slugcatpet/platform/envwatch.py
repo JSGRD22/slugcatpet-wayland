@@ -91,6 +91,11 @@ class EnvironmentWatcher(QObject):
 
     # ── 全屏让位 ──
     def _check_fullscreen(self):
+        if not self._pet._params.get("hide_on_fullscreen", True):
+            if self._fullscreen:
+                self._exit_fullscreen()
+            return
+
         now_full = self._detect_fullscreen()
         if now_full and not self._fullscreen:
             self._enter_fullscreen()
@@ -98,6 +103,29 @@ class EnvironmentWatcher(QObject):
             self._exit_fullscreen()
 
     def _detect_fullscreen(self) -> bool:
+        # Wayland (Niri) fallback
+        import os
+        if os.environ.get("WAYLAND_DISPLAY"):
+            try:
+                import subprocess
+                import json
+                p = subprocess.run(["niri", "msg", "-j", "focused-window"], capture_output=True, text=True, timeout=0.1)
+                if p.returncode == 0:
+                    win = json.loads(p.stdout)
+                    if win and "window_size" in win:
+                        ww, wh = win.get("window_size", [0, 0])
+                        o = subprocess.run(["niri", "msg", "-j", "focused-output"], capture_output=True, text=True, timeout=0.1)
+                        if o.returncode == 0:
+                            out = json.loads(o.stdout)
+                            logical = out.get("logical", {})
+                            lw = logical.get("width", 0)
+                            lh = logical.get("height", 0)
+                            if lw > 0 and lh > 0 and ww == lw and wh == lh:
+                                return True
+                        return False
+            except Exception:
+                pass
+
         try:
             if self._state_provider() in _TRUSTED_FULLSCREEN_STATES:
                 return True
