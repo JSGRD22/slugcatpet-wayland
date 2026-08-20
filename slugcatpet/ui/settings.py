@@ -8,6 +8,8 @@ from ..cats import REGISTRY
 from ..i18n import t
 from .._paths import resource_dir
 from ..window import MAX_PETS, EDGE_OFFSET_KEYS, edge_offsets
+from ..control.keymap import (DEFAULT_KEYBINDS, MOVEMENT_ACTIONS, key_display_name,
+                              key_name_from_qt, load_key_names, save_key_names)
 from .catmenu import variant_label, pet_label
 from .dialogs import ConfirmDialog, PickDialog
 
@@ -46,11 +48,14 @@ class SettingsWindow(QWidget):
         self.setWindowTitle(t("settings_title"))
         self.setStyleSheet(_QSS)
         self.setMinimumWidth(280)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._outer = QVBoxLayout(self)
         self._outer.setContentsMargins(16, 14, 16, 14)
         self._outer.setSpacing(10)
         self._body = None
         self._dlg = None                 # 弹窗单例守卫
+        self._capture_action = None
+        self._key_buttons = {}
         self._rebuild()
 
     def open(self):
@@ -78,6 +83,8 @@ class SettingsWindow(QWidget):
         self._section_env(v)
         v.addWidget(self._divider())
         self._section_hud(v)
+        v.addWidget(self._divider())
+        self._section_keys(v)
         v.addWidget(self._divider())
         self._section_bounds(v)
         self._outer.addWidget(self._body)
@@ -182,6 +189,76 @@ class SettingsWindow(QWidget):
         self._window._params["hide_on_fullscreen"] = checked
         if not checked and getattr(self._window, "_envwatch", None):
             self._window._envwatch._check_fullscreen()
+
+    def _section_keys(self, v):
+        v.addWidget(self._header(t("settings_keys_section")))
+        hint = QLabel(t("settings_keys_hint"))
+        hint.setObjectName("dim")
+        v.addWidget(hint)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        names = load_key_names()
+        self._key_buttons = {}
+        for row, action in enumerate(MOVEMENT_ACTIONS):
+            grid.addWidget(QLabel(t(f"settings_key_{action}")), row, 0)
+            btn = QPushButton(key_display_name(action, names).upper())
+            btn.clicked.connect(lambda _checked=False, a=action: self._begin_key_capture(a))
+            grid.addWidget(btn, row, 1)
+            self._key_buttons[action] = btn
+        reset = QPushButton(t("settings_keys_reset"))
+        reset.clicked.connect(self._reset_movement_keys)
+        grid.addWidget(reset, len(MOVEMENT_ACTIONS), 0, 1, 2)
+        v.addLayout(grid)
+
+    def _begin_key_capture(self, action):
+        self._capture_action = action
+        names = load_key_names()
+        for a, btn in self._key_buttons.items():
+            btn.setText(t("settings_keys_press") if a == action
+                        else key_display_name(a, names).upper())
+        self.activateWindow()
+        self.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def keyPressEvent(self, ev):
+        if self._capture_action is not None:
+            if ev.key() == Qt.Key.Key_Escape:
+                self._cancel_key_capture()
+                return
+            name = key_name_from_qt(ev.key())
+            if name is not None:
+                self._set_movement_key(self._capture_action, name)
+                return
+        super().keyPressEvent(ev)
+
+    def _cancel_key_capture(self):
+        self._capture_action = None
+        names = load_key_names()
+        for action, btn in self._key_buttons.items():
+            btn.setText(key_display_name(action, names).upper())
+
+    def _set_movement_key(self, action, name):
+        names = load_key_names()
+        names[action] = name
+        names = save_key_names(names)
+        self._capture_action = None
+        for a, btn in self._key_buttons.items():
+            btn.setText(key_display_name(a, names).upper())
+        hud = getattr(self._window, "_control_hud", None)
+        if hud is not None:
+            hud.reload_keymap()
+
+    def _reset_movement_keys(self):
+        names = load_key_names()
+        for action in MOVEMENT_ACTIONS:
+            names[action] = DEFAULT_KEYBINDS[action]
+        names = save_key_names(names)
+        self._capture_action = None
+        for action, btn in self._key_buttons.items():
+            btn.setText(key_display_name(action, names).upper())
+        hud = getattr(self._window, "_control_hud", None)
+        if hud is not None:
+            hud.reload_keymap()
 
     def _section_bounds(self, v):
         v.addWidget(self._header(t("settings_bounds_section")))

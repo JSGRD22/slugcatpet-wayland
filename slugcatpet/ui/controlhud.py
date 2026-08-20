@@ -77,6 +77,16 @@ class ControlHud(QWidget):
         box.addWidget(btn)
         outer.addWidget(panel)
 
+    def reload_keymap(self):
+        """Refresh key bindings while the control HUD is already open."""
+        self._keymap = load_keymap()
+        k = {a: key_display_name(a).upper() for a in ("left", "right", "up", "down", "jump")}
+        self._keys_text = t("ctrlhud_keys",
+                            move=k["up"] + k["left"] + k["down"] + k["right"],
+                            jump=k["jump"])
+        if not self._paused:
+            self._keys.setText(self._keys_text)
+
     def _place(self):
         # 默认屏底中央
         self.layout().activate()
