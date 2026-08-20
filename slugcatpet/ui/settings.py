@@ -1,13 +1,15 @@
 """设置窗：猫增删/环境单选/HUD 开关，关窗即写盘。"""
 from __future__ import annotations
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
-                               QCheckBox, QRadioButton, QButtonGroup, QFrame, QDialog, QSpinBox)
+                               QCheckBox, QRadioButton, QButtonGroup, QFrame, QDialog, QDoubleSpinBox,
+                               QSpinBox)
 from PySide6.QtCore import Qt
 
 from ..cats import REGISTRY
 from ..i18n import t
 from .._paths import resource_dir
-from ..window import MAX_PETS, EDGE_OFFSET_KEYS, edge_offsets
+from ..window import (MAX_PETS, EDGE_OFFSET_KEYS, MAX_DISPLAY_SCALE, MIN_DISPLAY_SCALE,
+                      display_scale, edge_offsets)
 from ..control.keymap import (DEFAULT_KEYBINDS, MOVEMENT_ACTIONS, key_display_name,
                               key_name_from_qt, load_key_names, save_key_names)
 from .catmenu import variant_label, pet_label
@@ -83,6 +85,8 @@ class SettingsWindow(QWidget):
         self._section_env(v)
         v.addWidget(self._divider())
         self._section_hud(v)
+        v.addWidget(self._divider())
+        self._section_size(v)
         v.addWidget(self._divider())
         self._section_keys(v)
         v.addWidget(self._divider())
@@ -189,6 +193,27 @@ class SettingsWindow(QWidget):
         self._window._params["hide_on_fullscreen"] = checked
         if not checked and getattr(self._window, "_envwatch", None):
             self._window._envwatch._check_fullscreen()
+
+    def _section_size(self, v):
+        v.addWidget(self._header(t("settings_size_section")))
+        hint = QLabel(t("settings_size_hint"))
+        hint.setObjectName("dim")
+        v.addWidget(hint)
+        row = QHBoxLayout()
+        row.addWidget(QLabel(t("settings_size_scale")))
+        spin = QDoubleSpinBox()
+        spin.setRange(MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE)
+        spin.setSingleStep(0.25)
+        spin.setDecimals(2)
+        spin.setSuffix("x")
+        spin.setValue(display_scale(self._window._params, self._window.layout_data.canvas_scale))
+        spin.valueChanged.connect(self._on_size_changed)
+        row.addWidget(spin)
+        v.addLayout(row)
+
+    def _on_size_changed(self, value):
+        self._window.set_display_scale(value)
+        self._write_state()
 
     def _section_keys(self, v):
         v.addWidget(self._header(t("settings_keys_section")))

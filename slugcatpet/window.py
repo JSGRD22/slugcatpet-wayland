@@ -19,6 +19,8 @@ from .world.items import ItemInteractionMixin
 from .world.enums import ItemState
 
 MAX_PETS = 3
+MIN_DISPLAY_SCALE = 1.0
+MAX_DISPLAY_SCALE = 6.0
 
 STONE_FAST_REDRAW = 3.0    # 速度超此整窗重绘
 
@@ -45,9 +47,10 @@ def compute_geometry(area: QRect, geo: QRect, canvas_scale: int) -> dict:
     desired_inset = int(round(GROUND_INSET * s))
     if reserved_below > 0:
         # A bottom panel/dock starts at the work-area edge. Keep the physics
-        # floor there, but only draw the small below-floor sprite slack into the
-        # reserved area instead of occupying the whole panel.
-        inset_dev = min(desired_inset, reserved_below)
+        # floor there. With manual bottom offsets, the reserved area is already
+        # the user's chosen safe slack, so allow drawing through all of it; small
+        # scales otherwise clip sprite parts below the floor.
+        inset_dev = reserved_below
         floor_dev = true_ah
         win_h = true_ah + inset_dev
     else:
@@ -56,6 +59,17 @@ def compute_geometry(area: QRect, geo: QRect, canvas_scale: int) -> dict:
         win_h = true_ah + inset_dev
     return {"WL": true_aw / s, "HL": floor_dev / s, "ground_inset": inset_dev,
             "win_w": true_aw, "win_h": win_h}
+
+
+def display_scale(params: dict | None = None, fallback: float = 2.0) -> float:
+    """Screen pixels per logical world pixel."""
+    raw = os.environ.get("SLUGCATPET_SCALE")
+    if raw is None and isinstance(params, dict):
+        raw = params.get("display_scale", fallback)
+    try:
+        return clampf(float(raw), MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE)
+    except (TypeError, ValueError):
+        return clampf(float(fallback), MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE)
 
 
 def edge_offsets(params: dict | None = None) -> dict[str, int]:
@@ -142,7 +156,7 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
             self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        s = self.layout_data.canvas_scale
+        s = display_scale(self._params, self.layout_data.canvas_scale)
         screen = QGuiApplication.primaryScreen()
         geo = screen.geometry()
         area = apply_edge_offsets(geo, edge_offsets(self._params))
@@ -509,6 +523,12 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
             self.apply_workspace(screen.availableGeometry(), screen.geometry())
+
+    def set_display_scale(self, scale: float):
+        """Set render/world scale and re-fit to the current screen."""
+        self._scale = clampf(float(scale), MIN_DISPLAY_SCALE, MAX_DISPLAY_SCALE)
+        self._params["display_scale"] = self._scale
+        self.apply_current_screen_geometry()
 
     def _reground(self, WL, HL):
         """同步各猫与物体到新地面。"""
