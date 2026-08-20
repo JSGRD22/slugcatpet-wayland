@@ -1,13 +1,13 @@
 """设置窗：猫增删/环境单选/HUD 开关，关窗即写盘。"""
 from __future__ import annotations
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-                               QCheckBox, QRadioButton, QButtonGroup, QFrame, QDialog)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
+                               QCheckBox, QRadioButton, QButtonGroup, QFrame, QDialog, QSpinBox)
 from PySide6.QtCore import Qt
 
 from ..cats import REGISTRY
 from ..i18n import t
 from .._paths import resource_dir
-from ..window import MAX_PETS
+from ..window import MAX_PETS, EDGE_OFFSET_KEYS, edge_offsets
 from .catmenu import variant_label, pet_label
 from .dialogs import ConfirmDialog, PickDialog
 
@@ -24,6 +24,8 @@ _QSS = (
     "border-radius:5px;padding:4px 12px;}"
     "QPushButton:enabled:hover{background:rgba(80,100,70,255);}"
     "QPushButton:disabled{color:#777;background:rgba(45,48,52,255);}"
+    "QSpinBox{color:#e8f5d8;background:#262b22;border:1px solid #52633f;"
+    "border-radius:4px;padding:2px 4px;}"
     "QCheckBox{color:#e8f5d8;}"
     "QRadioButton{color:#e8f5d8;spacing:8px;}"
     "QRadioButton::indicator{width:16px;height:16px;border-radius:8px;"
@@ -76,6 +78,8 @@ class SettingsWindow(QWidget):
         self._section_env(v)
         v.addWidget(self._divider())
         self._section_hud(v)
+        v.addWidget(self._divider())
+        self._section_bounds(v)
         self._outer.addWidget(self._body)
         self.adjustSize()
 
@@ -178,6 +182,33 @@ class SettingsWindow(QWidget):
         self._window._params["hide_on_fullscreen"] = checked
         if not checked and getattr(self._window, "_envwatch", None):
             self._window._envwatch._check_fullscreen()
+
+    def _section_bounds(self, v):
+        v.addWidget(self._header(t("settings_bounds_section")))
+        hint = QLabel(t("settings_bounds_hint"))
+        hint.setObjectName("dim")
+        v.addWidget(hint)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        labels = {key: t(f"settings_bounds_{key}") for key in EDGE_OFFSET_KEYS}
+        current = edge_offsets(self._window._params)
+        for row, key in enumerate(EDGE_OFFSET_KEYS):
+            grid.addWidget(QLabel(labels[key]), row, 0)
+            spin = QSpinBox()
+            spin.setRange(0, 512)
+            spin.setSuffix(" px")
+            spin.setValue(current.get(key, 0))
+            spin.valueChanged.connect(lambda value, k=key: self._on_offset_changed(k, value))
+            grid.addWidget(spin, row, 1)
+        v.addLayout(grid)
+
+    def _on_offset_changed(self, key, value):
+        offsets = dict(self._window._params.get("screen_offsets") or {})
+        offsets[key] = int(value)
+        self._window._params["screen_offsets"] = offsets
+        self._window.apply_current_screen_geometry()
+        self._write_state()
 
     # 增删走卡片弹窗（open()=WindowModal，不 exec）
     def _on_add(self):

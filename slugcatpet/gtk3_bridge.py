@@ -1,4 +1,3 @@
-import math
 import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkLayerShell', '0.1')
@@ -11,40 +10,23 @@ from PySide6.QtCore import Qt, QPoint, QPointF
 class GTK3Bridge:
     def __init__(self, pet_window):
         self.pet = pet_window
-        
-        self.width = self.pet.width()
-        self.height = self.pet.height()
-        
-        self.qimg = QImage(self.width, self.height, QImage.Format_ARGB32_Premultiplied)
-        self.buffer = self.qimg.bits()
-        self.stride = self.qimg.bytesPerLine()
-        self.cairo_surface = cairo.ImageSurface.create_for_data(
-            self.buffer, cairo.FORMAT_ARGB32, self.width, self.height, self.stride
-        )
+        self.width = 0
+        self.height = 0
+        self.qimg = None
+        self.buffer = None
+        self.stride = 0
+        self.cairo_surface = None
         
         self.gtk_win = Gtk.Window()
         self.gtk_win.set_title("Slugcat Pet")
         GtkLayerShell.init_for_window(self.gtk_win)
         GtkLayerShell.set_layer(self.gtk_win, GtkLayerShell.Layer.OVERLAY)
-        
-        screen = QGuiApplication.primaryScreen()
-        geo = screen.geometry()
-        area = screen.availableGeometry()
-        
+
         GtkLayerShell.set_anchor(self.gtk_win, GtkLayerShell.Edge.TOP, True)
         GtkLayerShell.set_anchor(self.gtk_win, GtkLayerShell.Edge.BOTTOM, True)
         GtkLayerShell.set_anchor(self.gtk_win, GtkLayerShell.Edge.LEFT, True)
         GtkLayerShell.set_anchor(self.gtk_win, GtkLayerShell.Edge.RIGHT, True)
-        
-        margin_top = self.pet.y() - geo.y()
-        margin_left = self.pet.x() - geo.x()
-        margin_bottom = geo.height() - margin_top - self.height
-        margin_right = geo.width() - margin_left - self.width
-        
-        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.TOP, margin_top)
-        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.BOTTOM, margin_bottom)
-        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.LEFT, margin_left)
-        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.RIGHT, margin_right)
+        self._sync_geometry(force=True)
         
         self.gtk_win.set_app_paintable(True)
         screen = self.gtk_win.get_screen()
@@ -73,6 +55,36 @@ class GTK3Bridge:
         
         GLib.timeout_add(16, self.render_frame)
         self.gtk_win.show_all()
+
+    def _reset_surface(self, width, height):
+        self.width = max(1, int(width))
+        self.height = max(1, int(height))
+        self.qimg = QImage(self.width, self.height, QImage.Format_ARGB32_Premultiplied)
+        self.buffer = self.qimg.bits()
+        self.stride = self.qimg.bytesPerLine()
+        self.cairo_surface = cairo.ImageSurface.create_for_data(
+            self.buffer, cairo.FORMAT_ARGB32, self.width, self.height, self.stride
+        )
+
+    def _sync_geometry(self, force=False):
+        width = self.pet.width()
+        height = self.pet.height()
+        if force or width != self.width or height != self.height:
+            self._reset_surface(width, height)
+
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        geo = screen.geometry()
+        margin_top = self.pet.y() - geo.y()
+        margin_left = self.pet.x() - geo.x()
+        margin_bottom = geo.height() - margin_top - self.height
+        margin_right = geo.width() - margin_left - self.width
+
+        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.TOP, margin_top)
+        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.BOTTOM, margin_bottom)
+        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.LEFT, margin_left)
+        GtkLayerShell.set_margin(self.gtk_win, GtkLayerShell.Edge.RIGHT, margin_right)
         
     def mock_cursor_pos(self):
         return self.last_global_pos
@@ -122,6 +134,7 @@ class GTK3Bridge:
         self.gtk_win.input_shape_combine_region(region)
 
     def render_frame(self):
+        self._sync_geometry()
         self.update_region()
         self.qimg.fill(QColor(0, 0, 0, 0))
         

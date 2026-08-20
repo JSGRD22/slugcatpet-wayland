@@ -26,6 +26,7 @@ GRAV_EASE = 0.08              # 重力缓动率（~1s 过渡）
 
 # 地板下渲染余量
 GROUND_INSET = 16.0
+EDGE_OFFSET_KEYS = ("left", "top", "right", "bottom")
 
 # 窗口抖动
 SHAKE_DECAY = 0.8
@@ -39,11 +40,60 @@ def compute_geometry(area: QRect, geo: QRect, canvas_scale: int) -> dict:
     # Fix PySide6 Wayland availableGeometry bug where width/height don't subtract the offset
     true_aw = min(area.width(), geo.width() - (area.x() - geo.x()))
     true_ah = min(area.height(), geo.height() - (area.y() - geo.y()))
-    
-    avail_below = max(0, (geo.y() + geo.height()) - (area.y() + true_ah))
-    inset_dev = avail_below if avail_below > 0 else int(round(GROUND_INSET * s))
-    return {"WL": true_aw / s, "HL": true_ah / s, "ground_inset": inset_dev,
-            "win_w": true_aw, "win_h": true_ah + inset_dev}
+
+    reserved_below = max(0, (geo.y() + geo.height()) - (area.y() + true_ah))
+    desired_inset = int(round(GROUND_INSET * s))
+    if reserved_below > 0:
+        # A bottom panel/dock starts at the work-area edge. Keep the physics
+        # floor there, but only draw the small below-floor sprite slack into the
+        # reserved area instead of occupying the whole panel.
+        inset_dev = min(desired_inset, reserved_below)
+        floor_dev = true_ah
+        win_h = true_ah + inset_dev
+    else:
+        inset_dev = desired_inset
+        floor_dev = true_ah
+        win_h = true_ah + inset_dev
+    return {"WL": true_aw / s, "HL": floor_dev / s, "ground_inset": inset_dev,
+            "win_w": true_aw, "win_h": win_h}
+
+
+def edge_offsets(params: dict | None = None) -> dict[str, int]:
+    """Manual screen-edge offsets in device pixels."""
+    out = {k: 0 for k in EDGE_OFFSET_KEYS}
+    for key in EDGE_OFFSET_KEYS:
+        for env_key in (f"SLUGCATPET_OFFSET_{key.upper()}",
+                        f"SLUGCATPET_{key.upper()}_OFFSET"):
+            if env_key in os.environ:
+                try:
+                    out[key] = max(0, int(float(os.environ[env_key])))
+                except ValueError:
+                    pass
+                break
+    if "SLUGCATPET_BOTTOM_PANEL_PX" in os.environ:
+        try:
+            out["bottom"] = max(0, int(float(os.environ["SLUGCATPET_BOTTOM_PANEL_PX"])))
+        except ValueError:
+            pass
+    saved = (params or {}).get("screen_offsets")
+    if isinstance(saved, dict):
+        for key in EDGE_OFFSET_KEYS:
+            try:
+                out[key] = max(0, int(float(saved.get(key, out[key]))))
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
+def apply_edge_offsets(area: QRect, offsets: dict[str, int]) -> QRect:
+    """Shrink the work area by user-provided edge offsets."""
+    left = max(0, int(offsets.get("left", 0)))
+    top = max(0, int(offsets.get("top", 0)))
+    right = max(0, int(offsets.get("right", 0)))
+    bottom = max(0, int(offsets.get("bottom", 0)))
+    return QRect(area.x() + left, area.y() + top,
+                 max(1, area.width() - left - right),
+                 max(1, area.height() - top - bottom))
 
 
 def _clamp_chunk_to_bounds(c, WL, HL):
@@ -94,8 +144,8 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
 
         s = self.layout_data.canvas_scale
         screen = QGuiApplication.primaryScreen()
-        area = screen.availableGeometry()
         geo = screen.geometry()
+        area = apply_edge_offsets(geo, edge_offsets(self._params))
         geom = compute_geometry(area, geo, s)
         self._area = area                     # 工作区（不含下延带）
         self._scale = s
@@ -440,6 +490,7 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
     # ── 环境适应 ──
     def apply_workspace(self, area, geo):
         """工作区变化，重算几何并夹回物体。"""
+        area = apply_edge_offsets(geo, edge_offsets(self._params))
         geom = compute_geometry(area, geo, self._scale)
         self.world_version += 1
         self.geometry_version += 1
@@ -452,6 +503,12 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         self._reground(geom["WL"], geom["HL"])
         self._prev_dirty = None
         self.update()
+
+    def apply_current_screen_geometry(self):
+        """Re-read current screen geometry and user edge offsets."""
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            self.apply_workspace(screen.availableGeometry(), screen.geometry())
 
     def _reground(self, WL, HL):
         """同步各猫与物体到新地面。"""
