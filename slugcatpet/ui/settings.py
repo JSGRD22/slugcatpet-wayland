@@ -2,8 +2,9 @@
 from __future__ import annotations
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton,
                                QCheckBox, QRadioButton, QButtonGroup, QFrame, QDialog, QDoubleSpinBox,
-                               QSpinBox)
+                               QScrollArea, QSpinBox)
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 
 from ..cats import REGISTRY
 from ..i18n import t
@@ -30,6 +31,10 @@ _QSS = (
     "QPushButton:disabled{color:#777;background:rgba(45,48,52,255);}"
     "QSpinBox{color:#e8f5d8;background:#262b22;border:1px solid #52633f;"
     "border-radius:4px;padding:2px 4px;}"
+    "QScrollArea{background:transparent;border:none;}"
+    "QScrollBar:vertical{background:#262b22;width:8px;margin:0;border-radius:4px;}"
+    "QScrollBar::handle:vertical{background:#52633f;border-radius:4px;}"
+    "QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;}"
     "QCheckBox{color:#e8f5d8;}"
     "QRadioButton{color:#e8f5d8;spacing:8px;}"
     "QRadioButton::indicator{width:16px;height:16px;border-radius:8px;"
@@ -55,6 +60,7 @@ class SettingsWindow(QWidget):
         self._outer.setContentsMargins(16, 14, 16, 14)
         self._outer.setSpacing(10)
         self._body = None
+        self._scroll = None
         self._dlg = None                 # 弹窗单例守卫
         self._capture_action = None
         self._key_buttons = {}
@@ -72,10 +78,10 @@ class SettingsWindow(QWidget):
 
     # 内容重建
     def _rebuild(self):
-        if self._body is not None:
-            self._outer.removeWidget(self._body)
-            self._body.setParent(None)
-            self._body.deleteLater()
+        if self._scroll is not None:
+            self._outer.removeWidget(self._scroll)
+            self._scroll.setParent(None)
+            self._scroll.deleteLater()
         self._body = QWidget()
         v = QVBoxLayout(self._body)
         v.setContentsMargins(0, 0, 0, 0)
@@ -91,8 +97,22 @@ class SettingsWindow(QWidget):
         self._section_keys(v)
         v.addWidget(self._divider())
         self._section_bounds(v)
-        self._outer.addWidget(self._body)
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setWidget(self._body)
+        self._outer.addWidget(self._scroll)
+        self._resize_scroll_to_screen()
         self.adjustSize()
+
+    def _resize_scroll_to_screen(self):
+        self._body.layout().activate()
+        wanted = self._body.sizeHint().height() + 2
+        screen = QGuiApplication.primaryScreen()
+        limit = 700
+        if screen is not None:
+            limit = max(260, int(screen.availableGeometry().height() * 0.82))
+        self._scroll.setMaximumHeight(min(wanted, limit))
 
     @staticmethod
     def _header(text):
