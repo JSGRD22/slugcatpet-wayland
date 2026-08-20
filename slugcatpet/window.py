@@ -317,6 +317,9 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         return dx / self._scale, dy / self._scale
 
     def cursor_logical(self):
+        override = getattr(self, "_cursor_logical_override", None)
+        if override is not None:
+            return override
         g = self.mapFromGlobal(QCursor.pos())
         return self.to_logical(g.x(), g.y())
 

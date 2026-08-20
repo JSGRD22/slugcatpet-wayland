@@ -88,24 +88,38 @@ class GTK3Bridge:
         
     def mock_cursor_pos(self):
         return self.last_global_pos
+
+    def _event_global_pos(self, e):
+        x = getattr(e, "x_root", None)
+        y = getattr(e, "y_root", None)
+        if x is None or y is None:
+            x = self.pet.x() + getattr(e, "x", 0)
+            y = self.pet.y() + getattr(e, "y", 0)
+        return QPoint(int(x), int(y))
+
+    def _sync_cursor_from_event(self, e):
+        self.last_global_pos = self._event_global_pos(e)
+        self.pet._cursor_logical_override = self.pet.to_logical(e.x, e.y)
         
     def queue_render(self, *args, **kwargs):
         pass
 
     def on_mouse_press(self, w, e):
+        self._sync_cursor_from_event(e)
         btn = Qt.LeftButton if e.button == 1 else Qt.RightButton if e.button == 3 else Qt.NoButton
         qev = QMouseEvent(QMouseEvent.MouseButtonPress, QPointF(e.x, e.y), btn, btn, Qt.NoModifier)
         self.pet.mousePressEvent(qev)
         return False
         
     def on_mouse_release(self, w, e):
+        self._sync_cursor_from_event(e)
         btn = Qt.LeftButton if e.button == 1 else Qt.RightButton if e.button == 3 else Qt.NoButton
         qev = QMouseEvent(QMouseEvent.MouseButtonRelease, QPointF(e.x, e.y), btn, btn, Qt.NoModifier)
         self.pet.mouseReleaseEvent(qev)
         return False
         
     def on_mouse_motion(self, w, e):
-        self.last_global_pos = QPoint(int(e.x), int(e.y))
+        self._sync_cursor_from_event(e)
         return False
         
     def update_region(self):
