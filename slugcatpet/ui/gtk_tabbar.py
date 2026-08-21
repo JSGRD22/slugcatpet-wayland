@@ -1,4 +1,4 @@
-"""使用GTK layer-shell制作的侧边 Tab：收起态可拖动箭头，展开态图标盘+动作列。"""
+"""GTK layer-shell side tabbar."""
 from __future__ import annotations
 
 import cairo
@@ -12,8 +12,8 @@ from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, GtkLayerShell
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 from PySide6.QtGui import QGuiApplication
 
-from .i18n import t
-from .ui.tabbar import COLLAPSED_H, COLLAPSED_W, EXPANDED_H, EXPANDED_W, _make_place_icon
+from ..i18n import t
+from .place_icons import COLLAPSED_H, COLLAPSED_W, EXPANDED_H, EXPANDED_W, make_place_icon
 
 _CSS = b"""
 window, .slugcat-root {
@@ -58,8 +58,8 @@ window, .slugcat-root {
 
 
 def _place_pixbuf(kind, size, atlas):
-    """Render the existing Qt tabbar icon into a GTK pixbuf."""
-    qpix = _make_place_icon(kind, size, 1.0, atlas)
+    """Render a Qt placement icon into a GTK pixbuf."""
+    qpix = make_place_icon(kind, size, 1.0, atlas)
     data = QByteArray()
     buf = QBuffer(data)
     if not buf.open(QIODevice.OpenModeFlag.WriteOnly):
@@ -458,7 +458,7 @@ class GtkLayerTabBar:
 
     def _quit(self):
         try:
-            from .platform.cursorfx import abort_all
+            from ..platform.cursorfx import abort_all
             abort_all()
         except Exception:
             pass

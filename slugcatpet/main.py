@@ -1,4 +1,4 @@
-"""启动应用，管理 PetWindow、TabBar、托盘、全局热键。"""
+"""启动应用，管理 PetWindow、GTK 侧边栏、托盘、全局热键。"""
 from __future__ import annotations
 import sys
 import os
@@ -13,7 +13,7 @@ from PySide6.QtCore import QTimer
 
 from .cats import default_def
 from .window import PetWindow
-from .gtk_tabbar import GtkLayerTabBar
+from .ui.gtk_tabbar import GtkLayerTabBar
 from .ui.hud import HudPanel
 from .ui.settings import SettingsWindow
 from .control.hotkey import HotkeyFilter, MOD_CONTROL, MOD_ALT, HK_PLACE_ESC
