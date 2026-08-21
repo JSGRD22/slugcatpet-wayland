@@ -45,10 +45,11 @@ _QSS = (
 
 
 class SettingsWindow(QWidget):
-    def __init__(self, window, hud, write_state):
+    def __init__(self, window, hud, tabbar, write_state):
         super().__init__()
         self._window = window
         self._hud = hud
+        self._tabbar = tabbar
         self._write_state = write_state
         window._settings_panel = self    # 供 window 反向同步世界态
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint)
@@ -208,6 +209,11 @@ class SettingsWindow(QWidget):
         chk.setChecked(self._hud.isVisible())
         chk.toggled.connect(self._on_hud_toggled)
         v.addWidget(chk)
+
+        chk_tab = QCheckBox(t("settings_show_tabbar"))
+        chk_tab.setChecked(self._tabbar.isVisible())
+        chk_tab.toggled.connect(self._on_tabbar_toggled)
+        v.addWidget(chk_tab)
 
     def _on_hide_fs_toggled(self, checked):
         self._window._params["hide_on_fullscreen"] = checked
@@ -376,6 +382,10 @@ class SettingsWindow(QWidget):
     def _on_hud_toggled(self, checked):
         if checked != self._hud.isVisible():
             self._hud.toggle_visible()
+
+    def _on_tabbar_toggled(self, checked):
+        if checked != self._tabbar.isVisible():
+            self._tabbar.toggle_visible()
 
     def refresh_env(self):
         """同步单选钮到真实环境态（未开窗跳过）。"""

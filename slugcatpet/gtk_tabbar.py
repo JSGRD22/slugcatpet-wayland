@@ -324,10 +324,12 @@ class GtkLayerTabBar:
     def toggle_visible(self):
         if self.isVisible():
             self.hide()
+            self.params["tab_visible"] = False
         else:
             self.expanded = True
             self.show()
             self._rebuild()
+            self.params["tab_visible"] = True
 
     def toggle(self):
         self.expanded = not self.expanded
@@ -335,6 +337,7 @@ class GtkLayerTabBar:
 
     def _on_delete(self, *_args):
         self.hide()
+        self.params["tab_visible"] = False
         return True
 
     def _on_arrow_press(self, _widget, event):

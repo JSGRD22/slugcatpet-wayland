@@ -138,8 +138,13 @@ def main():
     hud = HudPanel(pet, params)
     # 不在启动时显示面板，由用户手动从托盘打开
 
+    tab_visible = bool(params.get("tab_visible", False))
+    params["tab_visible"] = tab_visible
     tab = GtkLayerTabBar(pet, app, params)
-    tab.hide()
+    if tab_visible:
+        tab.show()
+    else:
+        tab.hide()
 
     def _write_state():
         """序列化状态并写盘。"""
@@ -157,7 +162,7 @@ def main():
         params["schema_version"] = SCHEMA_VERSION
         _save_params(params)
 
-    settings = SettingsWindow(pet, hud, _write_state)
+    settings = SettingsWindow(pet, hud, tab, _write_state)
     pet._hud = hud                       # 供增删猫后 rebuild_rows
     pet._pets_changed_cb = _write_state  # 增删猫后写盘
     pet._open_settings_cb = settings.open  # 设置入口共用
@@ -172,7 +177,7 @@ def main():
     act_settings.triggered.connect(settings.open)
     act_hud = QAction(t("tray_hud"))
     act_hud.triggered.connect(hud.toggle_visible)
-    act_tab = QAction("显示/隐藏侧边栏 (Toggle TabBar)")
+    act_tab = QAction(t("tray_tabbar"))
     act_tab.triggered.connect(tab.toggle_visible)
     act_pet = QAction("显示/隐藏桌宠 (Toggle Pet)")
     def toggle_pet():

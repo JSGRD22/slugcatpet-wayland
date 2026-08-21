@@ -110,6 +110,7 @@ _STR = {
     "settings_hud_section": {"zh": "界面与交互", "en": "UI & Interaction"},
     "settings_hide_fs": {"zh": "全屏时自动隐藏 (Hide on Fullscreen)", "en": "Hide on Fullscreen"},
     "settings_show_hud":     {"zh": "显示状态面板", "en": "Show status panel"},
+    "settings_show_tabbar":  {"zh": "显示侧边栏", "en": "Show tabbar"},
     "settings_size_section": {"zh": "尺寸", "en": "Size"},
     "settings_size_hint": {"zh": "调整桌宠的显示缩放。", "en": "Adjust the desktop pet display scale."},
     "settings_size_scale": {"zh": "缩放", "en": "Scale"},
@@ -144,6 +145,7 @@ _STR = {
     # —— main：托盘菜单 / 通知 ——
     "tray_settings": {"zh": "设置", "en": "Settings"},
     "tray_hud":     {"zh": "显示/隐藏状态面板 (Ctrl+Alt+H)", "en": "Show/Hide status panel (Ctrl+Alt+H)"},
+    "tray_tabbar":  {"zh": "显示/隐藏侧边栏", "en": "Show/Hide tabbar"},
     "tray_quit":    {"zh": "退出程序", "en": "Quit program"},
     "tray_abort":   {"zh": "中止光标劫持 (Ctrl+Alt+Q)", "en": "Abort cursor hijack (Ctrl+Alt+Q)"},
     "tray_started": {"zh": "已启动。被超度的光标按 Ctrl+Alt+Q 解除；Ctrl+Alt+X 退出程序。",
