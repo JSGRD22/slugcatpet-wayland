@@ -13,7 +13,7 @@ from PySide6.QtCore import QTimer
 
 from .cats import default_def
 from .window import PetWindow
-from .ui.tabbar import TabBar
+from .gtk_tabbar import GtkLayerTabBar
 from .ui.hud import HudPanel
 from .ui.settings import SettingsWindow
 from .control.hotkey import HotkeyFilter, MOD_CONTROL, MOD_ALT, HK_PLACE_ESC
@@ -138,7 +138,7 @@ def main():
     hud = HudPanel(pet, params)
     # 不在启动时显示面板，由用户手动从托盘打开
 
-    tab = TabBar(pet, app, params)
+    tab = GtkLayerTabBar(pet, app, params)
     tab.hide()
 
     def _write_state():
