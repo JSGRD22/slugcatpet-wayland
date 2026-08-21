@@ -15,8 +15,7 @@ from .fruit import PLACE_HANGING_FRAC, make_fruit
 from ..rendering.graphics import _ang_from_up
 from ..rendering.primitives import blit, draw_fruit, draw_rope, draw_stone, draw_stone_trail
 from .enums import ItemState
-from .slimemold import (SlimeMold, _dirvec as _slime_dir, _lerp_map as _slime_lerp_map,
-                        TENDRIL_JAG_K)
+from .slimemold import SlimeMold, _lerp_map as _slime_lerp_map, TENDRIL_JAG_K
 from .stone import Stone
 from .batfly import BatFly
 from .pole import POLE_RAD, MIN_LENGTH as POLE_MIN_LENGTH, TOP_MARGIN as POLE_TOP_MARGIN
@@ -587,9 +586,8 @@ class ItemInteractionMixin:
     def place_slimemold(self, lx, ly):
         if not self.can_place_slimemold():
             return None
-        sx, sy, bx, by = self._slime_edge_anchor(lx, ly)
-        m = SlimeMold(bx, by, seed=self._slimemold_seed)
-        m.stick_to(sx, sy)
+        m = SlimeMold(lx, ly, seed=self._slimemold_seed)
+        m.reset_tendrils()
         self._slimemold_seed += 1
         self.slimemolds.append(m)
         self.world_version += 1
@@ -616,6 +614,7 @@ class ItemInteractionMixin:
         self._place_mode = True
         self._place_kind = "slimemold"
         self._slime_preview = SlimeMold(0.0, 0.0, seed=self._slimemold_seed)   # 预览用真实实例
+        self._slime_preview_ready = False
         self._begin_place_capture()
         return True
 
@@ -642,6 +641,7 @@ class ItemInteractionMixin:
         m.vx = m.vy = 0.0
         m.last_x, m.last_y = pos
         m.x, m.y = pos                       # 触须由 step 弹簧跟随
+        m.reset_tendrils()                   # 脱离边缘时别把旧锚点拖在墙上
         self._dragged_slimemold = m
         self._slime_drag_last = tuple(pos)
         return True
@@ -794,14 +794,14 @@ class ItemInteractionMixin:
         m = getattr(self, "_slime_preview", None)
         if m is None:
             return
-        sx, sy, bx, by = self._slime_edge_anchor(cx, cy)
-        m.x, m.y = bx, by
-        if m.stuck_pos is None:                  # 首帧钉锚
-            m.stick_to(sx, sy)
-        else:                                    # 后续弹簧跟随
-            m.stuck_pos = (sx, sy)
-            ux, uy = _slime_dir(bx, by, sx, sy)
-            m.rotation = (-ux, -uy)
+        m.stuck_pos = None
+        m.state = ItemState.MOUSE
+        m.last_x, m.last_y = m.x, m.y
+        m.x, m.y = cx, cy
+        m.vx = m.vy = 0.0
+        if not getattr(self, "_slime_preview_ready", False):
+            m.reset_tendrils()
+            self._slime_preview_ready = True
         m.step(self._WL, self._HL)               # 手动推进触须
         dm = clampf(inv_lerp(SLIME_DARK_LO, SLIME_DARK_HI,
                              getattr(self, "cold_cycle_prog", 0.0)), 0.0, 1.0)
@@ -1075,6 +1075,7 @@ class ItemInteractionMixin:
         self._place_mode = False
         self._place_kind = None
         self._slime_preview = None
+        self._slime_preview_ready = False
         hk = getattr(self, "_hotkey_filter", None)
         if hk is not None:
             hk.unregister(HK_PLACE_ESC)

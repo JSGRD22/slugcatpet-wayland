@@ -206,6 +206,7 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         self._dragged_slimemold = None
         self._slime_drag_last = None
         self._slime_preview = None
+        self._slime_preview_ready = False
 
         # 放蝙蝠
         self.batflies = []
