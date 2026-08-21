@@ -21,6 +21,16 @@ _PANEL_QSS = (
     "QPushButton:hover{background:rgba(120,150,100,40);}")
 
 _PAUSED_QSS = "color:#e8c86a;font-weight:bold;"
+_KEY_HINT_ACTIONS = ("left", "right", "up", "down", "jump", "grab", "throw")
+
+
+def _keys_hint_text() -> str:
+    keys = {action: key_display_name(action).upper() for action in _KEY_HINT_ACTIONS}
+    return t("ctrlhud_keys",
+             move=keys["up"] + keys["left"] + keys["down"] + keys["right"],
+             jump=keys["jump"],
+             grab=keys["grab"],
+             throw=keys["throw"])
 
 
 class ControlHud(QWidget):
@@ -63,13 +73,7 @@ class ControlHud(QWidget):
         title.setObjectName("ctrlTitle")
         box.addWidget(title)
 
-        k = {a: key_display_name(a).upper()
-             for a in ("left", "right", "up", "down", "jump", "grab", "throw")}
-        self._keys_text = t("ctrlhud_keys",
-                            move=k["up"] + k["left"] + k["down"] + k["right"],
-                            jump=k["jump"],
-                            grab=k["grab"],
-                            throw=k["throw"])
+        self._keys_text = _keys_hint_text()
         self._keys = QLabel(self._keys_text)
         self._keys.setObjectName("ctrlKeys")
         box.addWidget(self._keys)
@@ -83,13 +87,7 @@ class ControlHud(QWidget):
     def reload_keymap(self):
         """Refresh key bindings while the control HUD is already open."""
         self._keymap = load_keymap()
-        k = {a: key_display_name(a).upper()
-             for a in ("left", "right", "up", "down", "jump", "grab", "throw")}
-        self._keys_text = t("ctrlhud_keys",
-                            move=k["up"] + k["left"] + k["down"] + k["right"],
-                            jump=k["jump"],
-                            grab=k["grab"],
-                            throw=k["throw"])
+        self._keys_text = _keys_hint_text()
         if not self._paused:
             self._keys.setText(self._keys_text)
 

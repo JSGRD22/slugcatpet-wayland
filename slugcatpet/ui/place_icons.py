@@ -161,9 +161,11 @@ def _paint_place_icon(p, kind, r, atlas=None):
         pts = [(-0.54, 0.12), (-0.30, -0.40), (0.10, -0.46),
                (0.54, -0.12), (0.46, 0.34), (-0.12, 0.46)]
         poly = [QPointF(ox + dx * w * 0.56, oy + dy * h * 0.50) for dx, dy in pts]
-        p.setPen(_pen(_ICON_GREY, max(1.8, w * 0.13), cap=False)); p.setBrush(_ICON_GREY)
+        p.setPen(_pen(_ICON_GREY, max(1.8, w * 0.13), cap=False))
+        p.setBrush(_ICON_GREY)
         p.drawPolygon(QPolygonF(poly))
-        p.setPen(_pen(_ICON_FACET, max(1.2, w * 0.07))); p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(_pen(_ICON_FACET, max(1.2, w * 0.07)))
+        p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawLine(QPointF(ox - w * 0.20, oy - h * 0.16),
                    QPointF(ox + w * 0.08, oy - h * 0.24))
     elif kind == "lamp":
@@ -172,10 +174,13 @@ def _paint_place_icon(p, kind, r, atlas=None):
             _paint_lamp_sprite(p, r, atlas)
         else:
             d = w * 0.42
-            bulb = QRectF(0, 0, d, d); bulb.moveCenter(QPointF(cx, cy))
-            p.setPen(Qt.PenStyle.NoPen); p.setBrush(_ICON_AMBER)
+            bulb = QRectF(0, 0, d, d)
+            bulb.moveCenter(QPointF(cx, cy))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(_ICON_AMBER)
             p.drawEllipse(bulb)
-            p.setPen(_pen(_ICON_AMBER, max(1.4, w * 0.08))); p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(_pen(_ICON_AMBER, max(1.4, w * 0.08)))
+            p.setBrush(Qt.BrushStyle.NoBrush)
             bc, rad = bulb.center(), d / 2
             for k in range(8):
                 a = math.radians(22.5 + 45 * k)
@@ -189,7 +194,8 @@ def _paint_place_icon(p, kind, r, atlas=None):
     elif kind == "batfly":
         # Batfly silhouette: wings, body, bright eye.
         bx, by = cx, cy + h * 0.06
-        p.setPen(Qt.PenStyle.NoPen); p.setBrush(_BAT_BODY)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(_BAT_BODY)
         for sgn in (-1, 1):                                    # mirrored wings
             wing = [QPointF(bx + sgn * w * 0.02, by - h * 0.16),
                     QPointF(bx + sgn * w * 0.46, by - h * 0.34),
@@ -204,8 +210,10 @@ def _paint_place_icon(p, kind, r, atlas=None):
     elif kind == "clear":
         # clear/no symbol
         d = min(w, h) * 0.90
-        ring = QRectF(0, 0, d, d); ring.moveCenter(QPointF(cx, cy))
-        p.setPen(_pen(_ICON_RED, max(1.8, w * 0.13))); p.setBrush(Qt.BrushStyle.NoBrush)
+        ring = QRectF(0, 0, d, d)
+        ring.moveCenter(QPointF(cx, cy))
+        p.setPen(_pen(_ICON_RED, max(1.8, w * 0.13)))
+        p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawEllipse(ring)
         a, rr = math.radians(45), d / 2
         p.drawLine(QPointF(cx - math.cos(a) * rr, cy + math.sin(a) * rr),
@@ -221,7 +229,8 @@ def _paint_lamp_sprite(p, r, atlas):
     grad.setColorAt(0.0, QColor(255, 150, 70, 165))
     grad.setColorAt(0.45, QColor(255, 100, 35, 80))
     grad.setColorAt(1.0, QColor(255, 70, 0, 0))
-    p.setPen(Qt.PenStyle.NoPen); p.setBrush(grad)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(grad)
     p.drawEllipse(QPointF(cx, cy), glow_r, glow_r)
     sw, sh = atlas.source_size("base", "DangleFruit0A")
     s = min(w / sw, h / sh) * 0.58                                 # leave room for the glow
@@ -230,7 +239,8 @@ def _paint_lamp_sprite(p, r, atlas):
     outline = atlas.sprite("base", "DangleFruit0A", _LAMP_OUTLINE)
     flesh = atlas.sprite("base", "DangleFruit0B", _LAMP_FLESH)
     p.save()                                                      # flip so the wide end points upward
-    p.translate(cx, cy); p.scale(1.0, -1.0)
+    p.translate(cx, cy)
+    p.scale(1.0, -1.0)
     local = QRectF(-dw / 2, -dh / 2, dw, dh)
     p.drawPixmap(local, outline, QRectF(outline.rect()))
     p.drawPixmap(local, flesh, QRectF(flesh.rect()))
@@ -247,13 +257,16 @@ def _paint_fruit_sprite(p, r, atlas):
     flesh = atlas.sprite("base", "DangleFruit0B")                  # white mask, colored by the gradient below
     ss = 4                                                          # supersample to reduce aliasing
     lw, lh = max(1, int(dw * ss)), max(1, int(dh * ss))
-    layer = QPixmap(lw, lh); layer.fill(Qt.GlobalColor.transparent)
+    layer = QPixmap(lw, lh)
+    layer.fill(Qt.GlobalColor.transparent)
     lp = QPainter(layer)
     lp.drawPixmap(QRectF(0, 0, lw, lh), flesh, QRectF(flesh.rect()))
     lp.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
     g = QLinearGradient(QPointF(0, 0), QPointF(0, lh))
-    g.setColorAt(0.0, _FRUIT_TOP); g.setColorAt(1.0, _FRUIT_BOT)
-    lp.fillRect(layer.rect(), g); lp.end()
+    g.setColorAt(0.0, _FRUIT_TOP)
+    g.setColorAt(1.0, _FRUIT_BOT)
+    lp.fillRect(layer.rect(), g)
+    lp.end()
     p.drawPixmap(dst, outline, QRectF(outline.rect()))
     p.drawPixmap(dst, layer, QRectF(layer.rect()))
 
@@ -275,7 +288,8 @@ def _paint_slimemold_icon(p, r, atlas=None):
     grad = QRadialGradient(QPointF(bx, by), glow_r)
     grad.setColorAt(0.0, _SLIME_GLOW)
     grad.setColorAt(1.0, QColor(255, 150, 50, 0))
-    p.setPen(Qt.PenStyle.NoPen); p.setBrush(grad)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(grad)
     p.drawEllipse(QPointF(bx, by), glow_r, glow_r)
     p.setPen(_pen(_SLIME_TENDRIL, max(1.6, w * 0.09)))
     for dx in (-0.22, -0.05, 0.12, 0.28):
@@ -283,8 +297,10 @@ def _paint_slimemold_icon(p, r, atlas=None):
         p.drawLine(QPointF(sx, by + h * 0.06),
                    QPointF(sx + dx * w * 0.25, by + h * 0.42))
     d = min(w, h) * 0.34
-    bulb = QRectF(0, 0, d, d); bulb.moveCenter(QPointF(bx, by))
-    p.setPen(Qt.PenStyle.NoPen); p.setBrush(_SLIME_BODY)
+    bulb = QRectF(0, 0, d, d)
+    bulb.moveCenter(QPointF(bx, by))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(_SLIME_BODY)
     p.drawEllipse(bulb)
 
 
@@ -299,8 +315,11 @@ def _paint_fruit_fallback(p, r):
     path.cubicTo(QPointF(cx - w * 0.42, r.bottom()),
                  QPointF(cx - w * 0.50, cy - h * 0.10), QPointF(cx, r.top()))
     g = QLinearGradient(QPointF(0, r.top()), QPointF(0, r.bottom()))
-    g.setColorAt(0.0, _FRUIT_TOP); g.setColorAt(1.0, _FRUIT_BOT)
-    p.setPen(Qt.PenStyle.NoPen); p.setBrush(g); p.drawPath(path)
+    g.setColorAt(0.0, _FRUIT_TOP)
+    g.setColorAt(1.0, _FRUIT_BOT)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(g)
+    p.drawPath(path)
 
 
 def make_place_icon(kind, size, dpr, atlas=None):

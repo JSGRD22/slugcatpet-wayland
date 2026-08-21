@@ -148,7 +148,7 @@ def main():
 
     def _write_state():
         """序列化状态并写盘。"""
-        params["tab_y"] = tab._y
+        params["tab_y"] = tab.y
         params["tab_expanded"] = tab.expanded
         params["hud_x"] = hud.x()
         params["hud_y"] = hud.y()
@@ -244,6 +244,7 @@ def main():
             pass
         envwatch.stop()
         autosave.stop()
+        app._gtk3_bridge.close()
         _write_state()
         hotkey.unregister_all()
     app.aboutToQuit.connect(_cleanup)

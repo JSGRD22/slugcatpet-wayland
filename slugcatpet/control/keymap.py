@@ -26,6 +26,22 @@ def _to_qt_key(name: str) -> int | None:
     return None if key is None else int(key)
 
 
+def _valid_key_name(value) -> bool:
+    return isinstance(value, str) and _to_qt_key(value) is not None
+
+
+def _clean_key_names(names: dict | None) -> dict[str, str]:
+    """Merge a partial key-name mapping with defaults, discarding invalid keys."""
+    clean = dict(DEFAULT_KEYBINDS)
+    if not isinstance(names, dict):
+        return clean
+    for action in ACTIONS:
+        value = names.get(action)
+        if _valid_key_name(value):
+            clean[action] = value
+    return clean
+
+
 def key_name_from_qt(key: int) -> str | None:
     """Qt Key 整数值 → 键名（去 Key_ 前缀）。"""
     try:
@@ -40,33 +56,24 @@ def key_name_from_qt(key: int) -> str | None:
 def load_key_names(path=None) -> dict[str, str]:
     """动作→键名表，缺文件/坏 JSON 回落默认。"""
     p = Path(path) if path is not None else _default_path()
-    names = dict(DEFAULT_KEYBINDS)
     if not p.exists():
         try:
+            p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(json.dumps(DEFAULT_KEYBINDS, indent=2), encoding="utf-8")
         except Exception:
             pass
-        return names
+        return dict(DEFAULT_KEYBINDS)
     try:
         loaded = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
-        return names
-    if isinstance(loaded, dict):
-        for action in ACTIONS:
-            v = loaded.get(action)
-            if isinstance(v, str) and _to_qt_key(v) is not None:
-                names[action] = v
-    return names
+        return dict(DEFAULT_KEYBINDS)
+    return _clean_key_names(loaded)
 
 
 def save_key_names(names: dict[str, str], path=None) -> dict[str, str]:
     """保存有效键名；未知/缺失动作回落默认。"""
     p = Path(path) if path is not None else _default_path()
-    clean = dict(DEFAULT_KEYBINDS)
-    for action in ACTIONS:
-        v = names.get(action)
-        if isinstance(v, str) and _to_qt_key(v) is not None:
-            clean[action] = v
+    clean = _clean_key_names(names)
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(clean, indent=2), encoding="utf-8")

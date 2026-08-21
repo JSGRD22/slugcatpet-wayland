@@ -253,21 +253,32 @@ class SettingsWindow(QWidget):
         self._key_buttons = {}
         for row, action in enumerate(MOVEMENT_ACTIONS):
             grid.addWidget(QLabel(t(f"settings_key_{action}")), row, 0)
-            btn = QPushButton(key_display_name(action, names).upper())
+            btn = QPushButton()
             btn.clicked.connect(lambda _checked=False, a=action: self._begin_key_capture(a))
             grid.addWidget(btn, row, 1)
             self._key_buttons[action] = btn
+        self._refresh_key_buttons(names)
         reset = QPushButton(t("settings_keys_reset"))
         reset.clicked.connect(self._reset_movement_keys)
         grid.addWidget(reset, len(MOVEMENT_ACTIONS), 0, 1, 2)
         v.addLayout(grid)
 
+    def _refresh_key_buttons(self, names=None, capture_action=None):
+        names = load_key_names() if names is None else names
+        for action, btn in self._key_buttons.items():
+            if action == capture_action:
+                btn.setText(t("settings_keys_press"))
+            else:
+                btn.setText(key_display_name(action, names).upper())
+
+    def _reload_control_hud_keymap(self):
+        hud = getattr(self._window, "_control_hud", None)
+        if hud is not None:
+            hud.reload_keymap()
+
     def _begin_key_capture(self, action):
         self._capture_action = action
-        names = load_key_names()
-        for a, btn in self._key_buttons.items():
-            btn.setText(t("settings_keys_press") if a == action
-                        else key_display_name(a, names).upper())
+        self._refresh_key_buttons(capture_action=action)
         self.activateWindow()
         self.setFocus(Qt.FocusReason.OtherFocusReason)
 
@@ -284,20 +295,15 @@ class SettingsWindow(QWidget):
 
     def _cancel_key_capture(self):
         self._capture_action = None
-        names = load_key_names()
-        for action, btn in self._key_buttons.items():
-            btn.setText(key_display_name(action, names).upper())
+        self._refresh_key_buttons()
 
     def _set_movement_key(self, action, name):
         names = load_key_names()
         names[action] = name
         names = save_key_names(names)
         self._capture_action = None
-        for a, btn in self._key_buttons.items():
-            btn.setText(key_display_name(a, names).upper())
-        hud = getattr(self._window, "_control_hud", None)
-        if hud is not None:
-            hud.reload_keymap()
+        self._refresh_key_buttons(names)
+        self._reload_control_hud_keymap()
 
     def _reset_movement_keys(self):
         names = load_key_names()
@@ -305,11 +311,8 @@ class SettingsWindow(QWidget):
             names[action] = DEFAULT_KEYBINDS[action]
         names = save_key_names(names)
         self._capture_action = None
-        for action, btn in self._key_buttons.items():
-            btn.setText(key_display_name(action, names).upper())
-        hud = getattr(self._window, "_control_hud", None)
-        if hud is not None:
-            hud.reload_keymap()
+        self._refresh_key_buttons(names)
+        self._reload_control_hud_keymap()
 
     def _section_bounds(self, v):
         v.addWidget(self._header(t("settings_bounds_section")))

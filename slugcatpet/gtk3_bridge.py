@@ -6,7 +6,12 @@ from gi.repository import Gtk, GtkLayerShell, Gdk, GLib
 import cairo
 
 from PySide6.QtGui import QImage, QPainter, QColor, QMouseEvent, QCursor, QGuiApplication
-from PySide6.QtCore import Qt, QPoint, QPointF
+from PySide6.QtCore import Qt, QPoint, QPointF, QEvent
+
+FRAME_MS = 16
+BODY_INPUT_RADIUS = 30
+ITEM_INPUT_RADIUS = 15
+
 
 class GTK3Bridge:
     def __init__(self, pet_window):
@@ -49,13 +54,24 @@ class GTK3Bridge:
         
         self.last_global_pos = QPoint(0, 0)
         self.original_cursor_pos = QCursor.pos
+        self.original_update = self.pet.update
         QCursor.pos = self.mock_cursor_pos
         
         # Override update to prevent QWidget from repainting itself natively
         self.pet.update = self.queue_render
         
-        GLib.timeout_add(16, self.render_frame)
+        self._render_source = GLib.timeout_add(FRAME_MS, self.render_frame)
         self.gtk_win.show_all()
+
+    def close(self):
+        if self._render_source is not None:
+            GLib.source_remove(self._render_source)
+            self._render_source = None
+        QCursor.pos = self.original_cursor_pos
+        self.pet.update = self.original_update
+        if hasattr(self.pet, "_cursor_logical_override"):
+            delattr(self.pet, "_cursor_logical_override")
+        self.gtk_win.hide()
 
     def _reset_surface(self, width, height):
         self.width = max(1, int(width))
@@ -103,25 +119,44 @@ class GTK3Bridge:
         self.pet._cursor_logical_override = self.pet.to_logical(e.x, e.y)
         
     def queue_render(self, *args, **kwargs):
-        pass
+        return None
+
+    @staticmethod
+    def _qt_button(button):
+        if button == 1:
+            return Qt.MouseButton.LeftButton
+        if button == 3:
+            return Qt.MouseButton.RightButton
+        return Qt.MouseButton.NoButton
+
+    def _mouse_event(self, event_type, e):
+        button = self._qt_button(e.button)
+        return QMouseEvent(event_type, QPointF(e.x, e.y), button, button,
+                           Qt.KeyboardModifier.NoModifier)
 
     def on_mouse_press(self, w, e):
         self._sync_cursor_from_event(e)
-        btn = Qt.LeftButton if e.button == 1 else Qt.RightButton if e.button == 3 else Qt.NoButton
-        qev = QMouseEvent(QMouseEvent.MouseButtonPress, QPointF(e.x, e.y), btn, btn, Qt.NoModifier)
-        self.pet.mousePressEvent(qev)
+        self.pet.mousePressEvent(self._mouse_event(QEvent.Type.MouseButtonPress, e))
         return False
         
     def on_mouse_release(self, w, e):
         self._sync_cursor_from_event(e)
-        btn = Qt.LeftButton if e.button == 1 else Qt.RightButton if e.button == 3 else Qt.NoButton
-        qev = QMouseEvent(QMouseEvent.MouseButtonRelease, QPointF(e.x, e.y), btn, btn, Qt.NoModifier)
-        self.pet.mouseReleaseEvent(qev)
+        self.pet.mouseReleaseEvent(self._mouse_event(QEvent.Type.MouseButtonRelease, e))
         return False
         
     def on_mouse_motion(self, w, e):
         self._sync_cursor_from_event(e)
         return False
+
+    @staticmethod
+    def _union_rect(region, x, y, radius):
+        rect = cairo.RectangleInt(int(x - radius), int(y - radius),
+                                  int(radius * 2), int(radius * 2))
+        region.union(cairo.Region(rect))
+
+    def _item_iter(self):
+        for name in ("fruits", "stones", "slimemolds", "batflies"):
+            yield from getattr(self.pet, name, [])
         
     def update_region(self):
         region = cairo.Region()
@@ -134,17 +169,12 @@ class GTK3Bridge:
             for pet in self.pet.pets:
                 x = pet.body.chunk0.x * scale
                 y = pet.body.chunk0.y * scale
-                r = 30 * scale # safe radius to capture body clicks without blocking too much screen
-                rect = cairo.RectangleInt(int(x - r), int(y - r), int(r * 2), int(r * 2))
-                region.union(cairo.Region(rect))
-                
-            items = getattr(self.pet, "fruits", []) + getattr(self.pet, "stones", []) + getattr(self.pet, "slimemolds", []) + getattr(self.pet, "batflies", [])
-            for item in items:
+                self._union_rect(region, x, y, BODY_INPUT_RADIUS * scale)
+
+            for item in self._item_iter():
                 x = item.x * scale
                 y = item.y * scale
-                r = 15 * scale
-                rect = cairo.RectangleInt(int(x - r), int(y - r), int(r * 2), int(r * 2))
-                region.union(cairo.Region(rect))
+                self._union_rect(region, x, y, ITEM_INPUT_RADIUS * scale)
                 
         self.gtk_win.input_shape_combine_region(region)
 

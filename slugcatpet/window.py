@@ -2,9 +2,10 @@
 from __future__ import annotations
 import os
 import random
+import sys
 from PySide6.QtWidgets import QWidget
 from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QRect, QPoint, QPointF, QRectF
-from PySide6.QtGui import QPainter, QColor, QGuiApplication, QCursor
+from PySide6.QtGui import QPainter, QColor, QGuiApplication, QCursor, QRegion
 
 from .behavior import tuning
 from .rendering.atlas import AtlasSet
@@ -34,6 +35,10 @@ EDGE_OFFSET_KEYS = ("left", "top", "right", "bottom")
 SHAKE_DECAY = 0.8
 SHAKE_MAX = 6.0
 SHAKE_EPS = 0.05
+
+MASK_PET_PAD = 40.0
+MASK_ITEM_PAD = 20.0
+MASK_ITEM_RADIUS_FALLBACK = 15.0
 
 
 def compute_geometry(area: QRect, geo: QRect, canvas_scale: int) -> dict:
@@ -245,6 +250,8 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         self._prev_dirty = None
         self._fx_active_prev = False
         self._fx_active = False
+        self._linux_masked = False
+        self._prev_mask_region = None
         self.follow_cursor = True
         self.pets = []
         self._build_pets()
@@ -325,65 +332,80 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         return self.to_logical(g.x(), g.y())
 
     # ── 动态穿透 ──
-    def _update_passthrough(self):
-        if self.debug:
-            return
+    def _dragging_item(self):
+        return any(item is not None for item in (
+            self._dragged_fruit,
+            self._dragged_stone,
+            self._dragged_slimemold,
+            self._dragged_batfly,
+        ))
+
+    def _cursor_over_item(self, cur):
+        return (self._fruit_at(cur) is not None
+                or self._stone_at(cur) is not None
+                or self._slimemold_at(cur) is not None
+                or self._batfly_at(cur) is not None)
+
+    def _cursor_over_pet(self, cur):
         from .control.mouse import is_over
-        cur = self.cursor_logical()
-        active = any(pet.behavior is not None and pet.behavior.grab.active for pet in self.pets)
-        over_body = any(
+        return any(
             ((pet.behavior is None) or not pet.behavior.blocks_interaction())
             and is_over(pet.body, pet.gfx, cur, pad=6.0)
             for pet in self.pets)
-        dragging_fruit = self._dragged_fruit is not None
-        over_fruit = self._fruit_at(cur) is not None
-        dragging_stone = self._dragged_stone is not None
-        over_stone = self._stone_at(cur) is not None
-        dragging_slime = self._dragged_slimemold is not None
-        over_slime = self._slimemold_at(cur) is not None
-        dragging_batfly = self._dragged_batfly is not None
-        over_batfly = self._batfly_at(cur) is not None
-        
-        want = not (active or dragging_fruit or over_fruit or dragging_stone or over_stone
-                    or dragging_slime or over_slime or dragging_batfly or over_batfly or over_body)
-        
-        if self._place_mode:
-            want = False
+
+    def _wants_passthrough(self, cur):
+        active_grab = any(pet.behavior is not None and pet.behavior.grab.active
+                          for pet in self.pets)
+        interactive = (active_grab or self._dragging_item() or self._cursor_over_item(cur)
+                       or self._cursor_over_pet(cur))
+        return not self._place_mode and not interactive
+
+    def _update_passthrough(self):
+        if self.debug:
+            return
+        cur = self.cursor_logical()
+        want = self._wants_passthrough(cur)
         if want != self._passthrough:
             self._passthrough = want
             if not self._hwnd:
                 self._hwnd = int(self.winId())
             from .control.mouse import set_passthrough
             set_passthrough(self._hwnd, want)
-            
-        import sys
+
         if sys.platform.startswith("linux"):
-            if not want:
-                if getattr(self, '_linux_masked', False):
-                    self.clearMask()
-                    self._linux_masked = False
-            else:
-                from PySide6.QtGui import QRegion
-                from PySide6.QtCore import QRect
-                region = QRegion()
-                for p in self.pets:
-                    xs = [p.body.chunk0.x, p.body.chunk1.x, p.gfx.head.x]
-                    ys = [p.body.chunk0.y, p.body.chunk1.y, p.gfx.head.y]
-                    minx, maxx = int(min(xs)), int(max(xs))
-                    miny, maxy = int(min(ys)), int(max(ys))
-                    rect = QRect(minx - 40, miny - 40, maxx - minx + 80, maxy - miny + 80)
-                    region = region.united(QRegion(rect))
-                for arr in (self.fruits, self.stones, self.slimemolds, self.batflies):
-                    for item in arr:
-                        r = getattr(item, "rad", 15)
-                        rect = QRect(int(item.x - r - 20), int(item.y - r - 20), int(r*2 + 40), int(r*2 + 40))
-                        region = region.united(QRegion(rect))
-                
-                # Combine with previous region to clear Wayland ghosting trails
-                mask_region = region.united(self._prev_mask_region) if hasattr(self, '_prev_mask_region') else region
-                self.setMask(mask_region)
-                self._prev_mask_region = region
-                self._linux_masked = True
+            self._sync_linux_input_mask(want)
+
+    def _device_rect(self, x, y, w, h):
+        scale = self._scale
+        return QRect(int(x * scale), int(y * scale), int(w * scale), int(h * scale))
+
+    def _sync_linux_input_mask(self, passthrough):
+        if not passthrough:
+            if self._linux_masked:
+                self.clearMask()
+                self._linux_masked = False
+            self._prev_mask_region = None
+            return
+
+        region = QRegion()
+        for pet in self.pets:
+            xs = [pet.body.chunk0.x, pet.body.chunk1.x, pet.gfx.head.x]
+            ys = [pet.body.chunk0.y, pet.body.chunk1.y, pet.gfx.head.y]
+            left = min(xs) - MASK_PET_PAD
+            top = min(ys) - MASK_PET_PAD
+            width = max(xs) - min(xs) + MASK_PET_PAD * 2
+            height = max(ys) - min(ys) + MASK_PET_PAD * 2
+            region = region.united(QRegion(self._device_rect(left, top, width, height)))
+        for item in (*self.fruits, *self.stones, *self.slimemolds, *self.batflies):
+            radius = getattr(item, "rad", MASK_ITEM_RADIUS_FALLBACK) + MASK_ITEM_PAD
+            region = region.united(QRegion(self._device_rect(item.x - radius, item.y - radius,
+                                                             radius * 2, radius * 2)))
+
+        mask_region = (region.united(self._prev_mask_region)
+                       if self._prev_mask_region is not None else region)
+        self.setMask(mask_region)
+        self._prev_mask_region = region
+        self._linux_masked = True
 
     # ── 帧循环 ──
     _PHYS_DT = 1.0 / 40.0
@@ -431,7 +453,6 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         self._last_ms = now
         if dt <= 0.0:
             return
-        pass
         self._update_passthrough()
         self._advance(min(dt, self._MAX_DT))
         region = self._update_region()

@@ -9,7 +9,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gtk, Gdk, GdkPixbuf, GLib, GtkLayerShell
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRect
 from PySide6.QtGui import QGuiApplication
 
 from ..i18n import t
@@ -56,6 +56,22 @@ window, .slugcat-root {
 }
 """
 
+_PLACE_BUTTONS = (
+    ("vpole", "tip_vpole", "_place_vpole"),
+    ("hpole", "tip_hpole", "_place_hpole"),
+    ("fruit", "tip_fruit", "_place_fruit"),
+    ("stone", "tip_stone", "_place_stone"),
+    ("lamp", "tip_lamp", "_place_lamp"),
+    ("slimemold", "tip_slimemold", "_place_slimemold"),
+    ("batfly", "tip_batfly", "_place_batfly"),
+    ("clear", "tip_clear", "_clear_all"),
+)
+
+
+def _available_geometry() -> QRect:
+    screen = QGuiApplication.primaryScreen()
+    return screen.availableGeometry() if screen is not None else QRect(0, 0, EXPANDED_W, EXPANDED_H)
+
 
 def _place_pixbuf(kind, size, atlas):
     """Render a Qt placement icon into a GTK pixbuf."""
@@ -87,7 +103,7 @@ class GtkLayerTabBar:
     def __init__(self, pet, app, params=None):
         self.pet = pet
         self.app = app
-        self.params = params or {}
+        self.params = params if params is not None else {}
         self.expanded = bool(self.params.get("tab_expanded", False))
         self._visible = False
         self._dragging = False
@@ -97,7 +113,7 @@ class GtkLayerTabBar:
         self._root = None
         self._content = None
 
-        screen = QGuiApplication.primaryScreen().availableGeometry()
+        screen = _available_geometry()
         self._screen_y = screen.y()
         self._screen_h = screen.height()
         default_y = screen.y() + (screen.height() - EXPANDED_H) // 2
@@ -126,6 +142,10 @@ class GtkLayerTabBar:
 
         self._rebuild()
 
+    @property
+    def y(self):
+        return self._y
+
     def _init_layer_window(self, win, layer=GtkLayerShell.Layer.TOP, full_height=False):
         GtkLayerShell.init_for_window(win)
         try:
@@ -151,10 +171,7 @@ class GtkLayerTabBar:
         return max(0, self._y - self._screen_y)
 
     def _refresh_screen(self):
-        screen = QGuiApplication.primaryScreen()
-        if screen is None:
-            return
-        area = screen.availableGeometry()
+        area = _available_geometry()
         self._screen_y = area.y()
         self._screen_h = area.height()
 
@@ -263,18 +280,8 @@ class GtkLayerTabBar:
         grid.set_column_spacing(4)
         panel.pack_start(grid, False, False, 0)
         atlas = getattr(self.pet, "atlas", None)
-        place_items = [
-            ("vpole", t("tip_vpole"), self._place_vpole),
-            ("hpole", t("tip_hpole"), self._place_hpole),
-            ("fruit", t("tip_fruit"), self._place_fruit),
-            ("stone", t("tip_stone"), self._place_stone),
-            ("lamp", t("tip_lamp"), self._place_lamp),
-            ("slimemold", t("tip_slimemold"), self._place_slimemold),
-            ("batfly", t("tip_batfly"), self._place_batfly),
-            ("clear", t("tip_clear"), self._clear_all),
-        ]
-        for i, (kind, tip, cb) in enumerate(place_items):
-            btn = self._icon_button(kind, tip, cb, atlas)
+        for i, (kind, tip_key, callback_name) in enumerate(_PLACE_BUTTONS):
+            btn = self._icon_button(kind, t(tip_key), getattr(self, callback_name), atlas)
             btn.set_size_request(30, 32)
             grid.attach(btn, i % 3, i // 3, 1, 1)
 
@@ -314,6 +321,9 @@ class GtkLayerTabBar:
         self._sync_layer()
         self.gtk_win.hide()
         self._toast_win.hide()
+        if self._toast_source is not None:
+            GLib.source_remove(self._toast_source)
+            self._toast_source = None
 
     def isVisible(self):
         return bool(self._visible and self.gtk_win.get_visible())
@@ -327,12 +337,13 @@ class GtkLayerTabBar:
             self.params["tab_visible"] = False
         else:
             self.expanded = True
-            self.show()
             self._rebuild()
+            self.show()
             self.params["tab_visible"] = True
 
     def toggle(self):
         self.expanded = not self.expanded
+        self.params["tab_expanded"] = self.expanded
         self._rebuild()
 
     def _on_delete(self, *_args):
@@ -400,55 +411,50 @@ class GtkLayerTabBar:
         if self.expanded:
             self.toggle()
 
-    def _place_fruit(self):
-        if self.pet.can_place_fruit():
-            self.pet.enter_place_fruit_mode()
+    def _try_place(self, can_place, enter_mode, toast_key):
+        if can_place():
+            enter_mode()
             self._collapse()
         else:
-            self._toast(t("toast_max_fruit"))
+            self._toast(t(toast_key))
+
+    def _try_place_pole(self, orientation, enter_mode, toast_key):
+        if self.pet.can_place_pole(orientation):
+            enter_mode()
+            self._collapse()
+        else:
+            self._toast(t(toast_key))
+
+    def _place_fruit(self):
+        self._try_place(self.pet.can_place_fruit, self.pet.enter_place_fruit_mode,
+                        "toast_max_fruit")
 
     def _place_stone(self):
-        if self.pet.can_place_stone():
-            self.pet.enter_place_stone_mode()
-            self._collapse()
-        else:
-            self._toast(t("toast_max_stone"))
+        self._try_place(self.pet.can_place_stone, self.pet.enter_place_stone_mode,
+                        "toast_max_stone")
 
     def _place_lamp(self):
         self.pet.enter_place_lamp_mode()
         self._collapse()
 
     def _place_slimemold(self):
-        if self.pet.can_place_slimemold():
-            self.pet.enter_place_slimemold_mode()
-            self._collapse()
-        else:
-            self._toast(t("toast_max_slimemold"))
+        self._try_place(self.pet.can_place_slimemold, self.pet.enter_place_slimemold_mode,
+                        "toast_max_slimemold")
 
     def _place_batfly(self):
-        if self.pet.can_place_batfly():
-            self.pet.enter_place_batfly_mode()
-            self._collapse()
-        else:
-            self._toast(t("toast_max_batfly"))
+        self._try_place(self.pet.can_place_batfly, self.pet.enter_place_batfly_mode,
+                        "toast_max_batfly")
 
     def _place_vpole(self):
-        if self.pet.can_place_pole("vertical"):
-            self.pet.enter_place_vpole_mode()
-            self._collapse()
-        else:
-            self._toast(t("toast_max_vpole"))
+        self._try_place_pole("vertical", self.pet.enter_place_vpole_mode, "toast_max_vpole")
 
     def _place_hpole(self):
-        if self.pet.can_place_pole("horizontal"):
-            self.pet.enter_place_hpole_mode()
-            self._collapse()
-        else:
-            self._toast(t("toast_max_hpole"))
+        self._try_place_pole("horizontal", self.pet.enter_place_hpole_mode, "toast_max_hpole")
 
     def _clear_all(self):
-        if (self.pet.fruits or self.pet.stones or self.pet.slimemolds
-                or self.pet.batflies or self.pet.poles or self.pet.lamp is not None):
+        has_items = any((self.pet.fruits, self.pet.stones, self.pet.slimemolds,
+                         self.pet.batflies, self.pet.poles, self.pet.lamp is not None))
+        if has_items:
             self.pet.clear_all_items()
         else:
             self._toast(t("toast_no_object"))
