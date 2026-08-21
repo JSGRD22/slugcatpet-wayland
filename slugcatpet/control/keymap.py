@@ -7,13 +7,13 @@ from PySide6.QtCore import Qt
 
 from .._paths import user_dir
 
-# 动作→Qt Key 名，去 Key_ 前缀；grab/throw 预留
+# 动作→Qt Key 名，去 Key_ 前缀
 DEFAULT_KEYBINDS = {
     "left": "A", "right": "D", "up": "W", "down": "S",
     "jump": "Space", "grab": "K", "throw": "J",
 }
 ACTIONS = tuple(DEFAULT_KEYBINDS)
-MOVEMENT_ACTIONS = ("left", "right", "up", "down", "jump")
+MOVEMENT_ACTIONS = ("left", "right", "up", "down", "jump", "grab", "throw")
 
 
 def _default_path() -> Path:

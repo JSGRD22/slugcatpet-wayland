@@ -63,10 +63,13 @@ class ControlHud(QWidget):
         title.setObjectName("ctrlTitle")
         box.addWidget(title)
 
-        k = {a: key_display_name(a).upper() for a in ("left", "right", "up", "down", "jump")}
+        k = {a: key_display_name(a).upper()
+             for a in ("left", "right", "up", "down", "jump", "grab", "throw")}
         self._keys_text = t("ctrlhud_keys",
                             move=k["up"] + k["left"] + k["down"] + k["right"],
-                            jump=k["jump"])
+                            jump=k["jump"],
+                            grab=k["grab"],
+                            throw=k["throw"])
         self._keys = QLabel(self._keys_text)
         self._keys.setObjectName("ctrlKeys")
         box.addWidget(self._keys)
@@ -80,10 +83,13 @@ class ControlHud(QWidget):
     def reload_keymap(self):
         """Refresh key bindings while the control HUD is already open."""
         self._keymap = load_keymap()
-        k = {a: key_display_name(a).upper() for a in ("left", "right", "up", "down", "jump")}
+        k = {a: key_display_name(a).upper()
+             for a in ("left", "right", "up", "down", "jump", "grab", "throw")}
         self._keys_text = t("ctrlhud_keys",
                             move=k["up"] + k["left"] + k["down"] + k["right"],
-                            jump=k["jump"])
+                            jump=k["jump"],
+                            grab=k["grab"],
+                            throw=k["throw"])
         if not self._paused:
             self._keys.setText(self._keys_text)
 
