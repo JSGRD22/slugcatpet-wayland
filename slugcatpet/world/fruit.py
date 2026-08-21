@@ -17,6 +17,7 @@ BITES = 3
 
 STALK_ANCHOR_Y = -10.0          # 锚点 y，房顶 y=0 之上 10
 STALK_SEG_LEN = 15.0
+STALK_MIN_SEGS = 2          # 至少有锚点段+末段，短果柄也能拉住果子
 STALK_VEL_DAMP = 0.99
 STALK_SEG_GRAV = 0.9           # y↓
 STALK_CONN_POW = 1.1
@@ -157,7 +158,7 @@ class Stalk:
         fx, fy = fruit.x, fruit.y
         self.stuck_pos = (fx, STALK_ANCHOR_Y)
         self.rope_length = abs(self.stuck_pos[1] - fy)
-        n = max(1, int(self.rope_length / STALK_SEG_LEN))
+        n = max(STALK_MIN_SEGS, int(self.rope_length / STALK_SEG_LEN))
         self._n = n
         sx, sy = self.stuck_pos
         # segs[i] = [px,py,last_px,last_py,vx,vy]；初始沿锚点→果子均布
@@ -277,9 +278,19 @@ class Stalk:
 def make_fruit(x: float, y: float, HL: float, seed: int = 0, zerog: bool = False) -> Fruit:
     """放置分流：按高度选 free/hanging；无重力恒 free。"""
     f = Fruit(x, y, seed=seed)
-    if zerog or y > HL * PLACE_HANGING_FRAC:
-        f.state = ItemState.FREE
-    else:
-        f.state = ItemState.HANGING
-        f.stalk = Stalk(f)
+    set_placed_fruit_state(f, HL, zerog=zerog)
     return f
+
+
+def set_placed_fruit_state(f: Fruit, HL: float, zerog: bool = False,
+                           reset_velocity: bool = False) -> bool:
+    """按放置规则设置 free/hanging；返回 True=已挂上。"""
+    if reset_velocity:
+        f.vx = f.vy = 0.0
+    if zerog or f.bites < BITES or f.y > HL * PLACE_HANGING_FRAC:
+        f.state = ItemState.FREE
+        f.stalk = None
+        return False
+    f.state = ItemState.HANGING
+    f.stalk = Stalk(f)
+    return True

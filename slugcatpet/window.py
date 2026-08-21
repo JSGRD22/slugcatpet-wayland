@@ -197,6 +197,7 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
         self._fruit_seed = 0
         self._dragged_fruit = None
         self._drag_last = None
+        self._fruit_drag_from_place = False
 
         # 放石头
         self.stones = []
@@ -1159,7 +1160,7 @@ class PetWindow(EffectsMixin, ItemInteractionMixin, QWidget):
                 elif self._place_kind == "batfly":
                     self.place_batfly(lx, ly)
                 else:
-                    self.place_fruit(lx, ly)
+                    self.place_fruit(lx, ly, drag_until_release=True)
             elif e.button() == Qt.MouseButton.RightButton:
                 self._exit_place_mode()
             return

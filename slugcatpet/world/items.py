@@ -11,7 +11,7 @@ from PySide6.QtGui import (QBrush, QColor, QPainter, QPainterPath, QPen,
 from ..core.units import clampf, inv_lerp, lerp
 from ..core.gfxmath import _hsl2rgb
 from ..control.hotkey import HK_PLACE_ESC, VK_ESCAPE
-from .fruit import PLACE_HANGING_FRAC, make_fruit
+from .fruit import Fruit, PLACE_HANGING_FRAC, make_fruit, set_placed_fruit_state
 from ..rendering.graphics import _ang_from_up
 from ..rendering.primitives import blit, draw_fruit, draw_rope, draw_stone, draw_stone_trail
 from .enums import ItemState
@@ -145,14 +145,24 @@ class ItemInteractionMixin:
     def can_place_fruit(self) -> bool:
         return len(self.fruits) < self.MAX_FRUITS
 
-    def place_fruit(self, lx, ly):
+    def place_fruit(self, lx, ly, drag_until_release: bool = False):
         if not self.can_place_fruit():
             return None
-        f = make_fruit(lx, ly, self._HL, seed=self._fruit_seed, zerog=self.zerog_on)
-        self._fruit_seed += 1
-        self.fruits.append(f)
-        self.world_version += 1
-        self._exit_place_mode()
+        if drag_until_release:
+            f = Fruit(lx, ly, seed=self._fruit_seed)
+            f.state = ItemState.MOUSE
+            f.vx = f.vy = 0.0
+            f.last_x = f.x = lx
+            f.last_y = f.y = ly
+            self._dragged_fruit = f
+            self._drag_last = (lx, ly)
+            self._fruit_drag_from_place = True
+        else:
+            f = make_fruit(lx, ly, self._HL, seed=self._fruit_seed, zerog=self.zerog_on)
+            self._fruit_seed += 1
+            self.fruits.append(f)
+            self.world_version += 1
+            self._exit_place_mode()
         return f
 
     def clear_fruits(self):
@@ -169,6 +179,7 @@ class ItemInteractionMixin:
             self.world_version += 1
         self._dragged_fruit = None
         self._drag_last = None
+        self._fruit_drag_from_place = False
         self._exit_place_mode()
 
     def _fruit_at(self, pos):
@@ -191,6 +202,7 @@ class ItemInteractionMixin:
         f.stalk = None
         f.held_by_hand = None
         f.state = ItemState.MOUSE
+        self._fruit_drag_from_place = False
         f.vx = f.vy = 0.0
         f.last_x, f.last_y = pos
         f.x, f.y = pos
@@ -226,9 +238,18 @@ class ItemInteractionMixin:
             f.vx *= k
             f.vy *= k
         if f.state == ItemState.MOUSE:
-            f.state = ItemState.FREE
+            if getattr(self, "_fruit_drag_from_place", False):
+                set_placed_fruit_state(f, self._HL, zerog=self.zerog_on, reset_velocity=True)
+                self.fruits.append(f)
+                self._fruit_seed += 1
+                self.world_version += 1
+                self._fruit_drag_from_place = False
+                self._exit_place_mode()
+            else:
+                f.state = ItemState.FREE
         self._dragged_fruit = None
         self._drag_last = None
+        self._fruit_drag_from_place = False
         return True
 
     def can_place_stone(self) -> bool:
@@ -1072,6 +1093,10 @@ class ItemInteractionMixin:
     def _exit_place_mode(self):
         if not self._place_mode:
             return
+        if getattr(self, "_fruit_drag_from_place", False):
+            self._dragged_fruit = None
+            self._drag_last = None
+            self._fruit_drag_from_place = False
         self._place_mode = False
         self._place_kind = None
         self._slime_preview = None
